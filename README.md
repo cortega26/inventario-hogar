@@ -98,3 +98,7 @@ make test
 - `__pycache__/`
 
 Estos archivos no deberian versionarse. El CSV de inventario real tambien queda fuera del repositorio para no exponer datos personales.
+
+## Licencia
+
+MIT © 2026 Carlos Ortega González. Ver [LICENSE](LICENSE).
