@@ -228,20 +228,20 @@ class InventoryManager:
                 SELECT id, name, box, quantity, notes,
                        strftime('%Y-%m-%d %H:%M', updated_at) as updated_at
                 FROM items 
-                WHERE search_text LIKE ?
+                WHERE search_text LIKE ? ESCAPE '\\'
                 {sort_clause}
             """.format(
                 sort_clause=sort_clause
             )
-            params = (f"%{query.lower()}%",)
+            params = (self._like_pattern(query),)
         else:
             sort_clause = """
                 ORDER BY 
                     CASE 
                         WHEN lower(name) = ? THEN 1
                         WHEN lower(box) = ? THEN 2
-                        WHEN lower(name) LIKE ? THEN 3
-                        WHEN lower(box) LIKE ? THEN 4
+                        WHEN lower(name) LIKE ? ESCAPE '\\' THEN 3
+                        WHEN lower(box) LIKE ? ESCAPE '\\' THEN 4
                         ELSE 5
                     END,
                     name COLLATE NOCASE
@@ -250,17 +250,34 @@ class InventoryManager:
                 SELECT id, name, box, quantity, notes,
                        strftime('%Y-%m-%d %H:%M', updated_at) as updated_at
                 FROM items 
-                WHERE search_text LIKE ?
+                WHERE search_text LIKE ? ESCAPE '\\'
                 {sort_clause}
             """
-            search_term = f"%{query.lower()}%"
-            params = (search_term, query.lower(), query.lower(), search_term, search_term)
+            search_term = self._like_pattern(query)
+            params = (
+                search_term,
+                query.lower(),
+                query.lower(),
+                search_term,
+                search_term,
+            )
 
         rows = self.db.execute_query(query_str, params)
         results = [dict(row) for row in rows]
 
         self.cache.set(cache_key, results, ttl=AppConfig.CACHE_TTL_SEARCH)
         return results
+
+    @staticmethod
+    def _like_pattern(query: str) -> str:
+        """Build a LIKE pattern escaping wildcard characters."""
+        escaped = (
+            query.lower()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        return f"%{escaped}%"
 
     def touch_item(self, item_id: int) -> bool:
         return self.touch_item_status(item_id) == "updated"

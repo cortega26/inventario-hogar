@@ -393,6 +393,34 @@ class ReliabilityTests(unittest.TestCase):
                 manager.add_item_status("Malo\u202e", "Caja 1")
             database.close_all()
 
+    def test_search_escapes_like_wildcards(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "wildcards.db"
+            database = Database(str(db_path))
+            manager = InventoryManager(database, Cache())
+
+            manager.add_item("Cable 100% cobre", "Caja 1")
+            manager.add_item("Guia_rapida", "Caja 2")
+            manager.add_item("Libro", "Caja 3")
+
+            self.assertEqual(
+                [item["name"] for item in manager.search_items("%")],
+                ["Cable 100% cobre"],
+            )
+            self.assertEqual(
+                [item["name"] for item in manager.search_items("100%")],
+                ["Cable 100% cobre"],
+            )
+            self.assertEqual(
+                [item["name"] for item in manager.search_items("_")],
+                ["Guia_rapida"],
+            )
+            self.assertEqual(
+                [item["name"] for item in manager.search_items("%", sort_column="name")],
+                ["Cable 100% cobre"],
+            )
+            database.close_all()
+
     def test_search_matches_notes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "notes-search.db"
