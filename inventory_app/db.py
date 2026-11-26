@@ -1,4 +1,5 @@
 import logging
+import os
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -319,6 +320,10 @@ class Database:
             conn.backup(target)
         finally:
             target.close()
+        try:
+            os.chmod(destination, 0o600)
+        except OSError as exc:
+            logging.warning("Could not restrict backup permissions: %s", exc)
         self._prune_backups()
         return str(destination)
 
