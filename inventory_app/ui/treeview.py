@@ -4,6 +4,8 @@ from tkinter import ttk
 class SortableTreeview(ttk.Treeview):
     """Extended Treeview with sorting capability."""
 
+    _SORT_MARKERS = " ▲▼↑↓"
+
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self._sort_column = None
@@ -25,9 +27,9 @@ class SortableTreeview(ttk.Treeview):
             self._sort_descending = False
 
         for col in self["columns"]:
-            text = self.heading(col)["text"].rstrip(" ↑↓")
+            text = self.heading(col)["text"].rstrip(self._SORT_MARKERS).rstrip()
             if col == self._sort_column:
-                text += " ↓" if self._sort_descending else " ↑"
+                text += " ▼" if self._sort_descending else " ▲"
             self.heading(col, text=text)
 
         self.event_generate("<<SortChanged>>")
@@ -39,4 +41,3 @@ class SortableTreeview(ttk.Treeview):
     @property
     def sort_descending(self):
         return self._sort_descending
-

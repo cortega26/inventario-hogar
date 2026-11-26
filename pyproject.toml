@@ -13,9 +13,6 @@ authors = [
 ]
 dependencies = []
 
-[project.optional-dependencies]
-theme = ["ttkthemes>=3.2.2"]
-
 [project.scripts]
 inventario-hogar = "main:main"
 
@@ -24,3 +21,6 @@ py-modules = ["main", "act_db", "migrate_db", "validation_script"]
 
 [tool.setuptools.packages.find]
 include = ["inventory_app*"]
+
+[tool.setuptools.package-data]
+inventory_app = ["assets/*.png"]

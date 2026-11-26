@@ -12,10 +12,8 @@ Aplicacion de escritorio en Python y Tkinter para registrar articulos del hogar,
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .[theme]
+pip install -e .
 ```
-
-Si prefieres no instalar el tema opcional, usa `pip install -e .`. La interfaz seguira funcionando con el tema base de Tk.
 
 ## Uso
 
@@ -55,6 +53,13 @@ Migrar o normalizar la base de datos:
 python migrate_db.py --db-path inventory.db
 ```
 
+## Interfaz
+
+- Busqueda instantanea por nombre, nota o ubicacion.
+- Filtro por caja y metricas de articulos, unidades y ubicaciones.
+- Panel de detalle para crear o editar sin salir de la lista.
+- Atajos: `Ctrl+N` nuevo, `Ctrl+S` guardar, `Ctrl+F` buscar, `Supr` eliminar.
+
 ## Desarrollo
 
 Ejecutar pruebas:
@@ -70,4 +75,4 @@ python -m unittest -q
 - `inventory.log`
 - `__pycache__/`
 
-Estos archivos no deberian versionarse. El CSV incluido puede mantenerse como dato de ejemplo o insumo de importacion.
+Estos archivos no deberian versionarse. El CSV de inventario real tambien queda fuera del repositorio para no exponer datos personales.

@@ -118,17 +118,31 @@ def build_headless_app() -> ui_app.InventoryApp:
     app.quantity_var = FakeVar(str(AppConfig.DEFAULT_QUANTITY))
     app.status_var = FakeVar()
     app.summary_var = FakeVar()
+    app.metric_vars = {
+        "items": FakeVar("0"),
+        "units": FakeVar("0"),
+        "boxes": FakeVar("0"),
+    }
+    app.editor_title_var = FakeVar()
+    app.editor_meta_var = FakeVar()
+    app.error_var = FakeVar()
     app.notes_text = FakeText()
-    app.notes_preview = FakeText()
     app.name_entry = FakeEntry()
     app.box_entry = FakeEntry()
     app.quantity_entry = FakeEntry()
+    app.search_entry = FakeEntry()
     app.tree = FakeTree({})
     app.visible_items = []
     app.visible_item_map = {}
     app.box_filter_var = FakeVar("Todas")
     app.search_var = FakeVar("")
+    app._search_placeholder_active = False
     return app
+
+
+def row_values(name: str, box: str, quantity: int, updated: str = "2025-01-01 10:00"):
+    """Values as rendered by refresh_display (id is the tree iid)."""
+    return [name, box, quantity, updated]
 
 
 class ReliabilityTests(unittest.TestCase):
@@ -138,11 +152,8 @@ class ReliabilityTests(unittest.TestCase):
         self.assertEqual(Database.__name__, "Database")
         self.assertEqual(InventoryManager.__name__, "InventoryManager")
 
-    def test_ui_module_falls_back_without_ttkthemes(self):
-        if ui_app.HAS_TTKTHEMES:
-            self.assertIs(ui_app.InventoryApp.__mro__[1], ui_app.ThemedBaseTk)
-        else:
-            self.assertIs(ui_app.InventoryApp.__mro__[1], ui_app.tk.Tk)
+    def test_ui_uses_standard_tk_root(self):
+        self.assertTrue(issubclass(ui_app.InventoryApp, ui_app.tk.Tk))
 
     def test_schema_repair_from_legacy_updated_column(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -516,10 +527,9 @@ class ReliabilityTests(unittest.TestCase):
         app.box_var = FakeVar("Caja vieja")
         app.quantity_var = FakeVar("5")
         app.notes_text = FakeText("Nota vieja")
-        app.notes_preview = FakeText("Nota vieja")
         app.tree = FakeTree(
-            {"visible-1": {"values": [1, "Actual", "Caja 1", 2, "2025-01-01 10:00"]}},
-            selection=["visible-1"],
+            {"1": {"values": row_values("Actual", "Caja 1", 2)}},
+            selection=["1"],
         )
 
         app._sync_selection_with_visible_items()
@@ -529,6 +539,7 @@ class ReliabilityTests(unittest.TestCase):
         self.assertEqual(app.box_var.get(), "")
         self.assertEqual(app.quantity_var.get(), str(AppConfig.DEFAULT_QUANTITY))
         self.assertEqual(app.notes_text.get(), "")
+        self.assertEqual(app.editor_title_var.get(), "Nuevo artículo")
         self.assertTrue(app.tree.selection_removed)
 
     def test_sync_selection_keeps_visible_selected_item(self):
@@ -538,8 +549,8 @@ class ReliabilityTests(unittest.TestCase):
         app.box_var = FakeVar("Caja 1")
         app.quantity_var = FakeVar("2")
         app.tree = FakeTree(
-            {"visible-1": {"values": [1, "Actual", "Caja 1", 2, "2025-01-01 10:00"]}},
-            selection=["visible-1"],
+            {"1": {"values": row_values("Actual", "Caja 1", 2)}},
+            selection=["1"],
         )
 
         app._sync_selection_with_visible_items()
@@ -558,10 +569,10 @@ class ReliabilityTests(unittest.TestCase):
         app.status_var = FakeVar()
         app.tree = FakeTree(
             {
-                "one": {"values": [1, "Actual", "Caja 1", 3, "2025-01-01 10:00"]},
-                "two": {"values": [2, "Otro", "Caja 2", 1, "2025-01-01 10:01"]},
+                "1": {"values": row_values("Actual", "Caja 1", 3)},
+                "2": {"values": row_values("Otro", "Caja 2", 1, "2025-01-01 10:01")},
             },
-            selection=["one", "two"],
+            selection=["1", "2"],
         )
 
         app.on_item_select(None)
@@ -570,15 +581,14 @@ class ReliabilityTests(unittest.TestCase):
         self.assertEqual(app.name_var.get(), "")
         self.assertEqual(app.box_var.get(), "")
         self.assertEqual(app.quantity_var.get(), str(AppConfig.DEFAULT_QUANTITY))
-        self.assertEqual(app.status_var.get(), "2 artículo(s) seleccionados.")
+        self.assertEqual(app.status_var.get(), "2 artículos seleccionados.")
+        self.assertEqual(app.editor_title_var.get(), "Selección múltiple")
 
     def test_on_item_select_populates_quantity_and_notes(self):
         app = build_headless_app()
         app.tree = FakeTree(
-            {
-                "one": {"values": [1, "Taladro", "Caja 4", 2, "2025-01-01 10:00"]},
-            },
-            selection=["one"],
+            {"1": {"values": row_values("Taladro", "Caja 4", 2)}},
+            selection=["1"],
         )
         app.visible_item_map = {
             1: {
@@ -596,16 +606,16 @@ class ReliabilityTests(unittest.TestCase):
         self.assertEqual(app.current_item_id, 1)
         self.assertEqual(app.quantity_var.get(), "2")
         self.assertEqual(app.notes_text.get(), "Con brocas")
-        self.assertEqual(app.notes_preview.get(), "Con brocas")
+        self.assertEqual(app.editor_title_var.get(), "Editar artículo")
 
     def test_get_selected_item_ids_returns_all_selected_tree_ids(self):
         app = build_headless_app()
         app.tree = FakeTree(
             {
-                "one": {"values": [1, "Actual", "Caja 1", 2, "2025-01-01 10:00"]},
-                "two": {"values": [2, "Otro", "Caja 2", 1, "2025-01-01 10:01"]},
+                "1": {"values": row_values("Actual", "Caja 1", 2)},
+                "2": {"values": row_values("Otro", "Caja 2", 1, "2025-01-01 10:01")},
             },
-            selection=["one", "two"],
+            selection=["1", "2"],
         )
 
         self.assertEqual(app._get_selected_item_ids(), [1, 2])
@@ -614,23 +624,21 @@ class ReliabilityTests(unittest.TestCase):
         app = build_headless_app()
 
         app._update_result_status(0, 0, "abc", "Caja 1")
-        self.assertEqual(app.status_var.get(), "No hay resultados para la búsqueda o filtro actual.")
         self.assertEqual(
-            app.summary_var.get(),
-            "Resumen de Caja 1: 0 artículo(s), cantidad total 0.",
+            app.status_var.get(), "No hay resultados para la búsqueda o filtro actual."
         )
+        self.assertEqual(app.summary_var.get(), "0 artículos · 0 unidades")
+        self.assertEqual(app.metric_vars["items"].get(), "0")
 
+        app.visible_items = [{"box": "Caja 1"}, {"box": "Caja 1"}, {"box": "Caja 2"}]
         app._update_result_status(3, 8, "", "Caja 1")
-        self.assertEqual(
-            app.status_var.get(),
-            "Mostrando 3 artículo(s) en Caja 1 (cantidad total 8).",
-        )
+        self.assertEqual(app.status_var.get(), "Mostrando 3 artículos en Caja 1.")
+        self.assertEqual(app.summary_var.get(), "3 artículos · 8 unidades")
+        self.assertEqual(app.metric_vars["units"].get(), "8")
+        self.assertEqual(app.metric_vars["boxes"].get(), "2")
 
         app._update_result_status(2, 5, "abc", "Todas")
-        self.assertEqual(
-            app.status_var.get(),
-            "Mostrando 2 resultado(s) para 'abc' (cantidad total 5).",
-        )
+        self.assertEqual(app.status_var.get(), "2 resultados para 'abc'.")
 
     def test_clear_form_resets_quantity_and_notes(self):
         app = build_headless_app()
@@ -639,15 +647,17 @@ class ReliabilityTests(unittest.TestCase):
         app.box_var = FakeVar("Caja 4")
         app.quantity_var = FakeVar("4")
         app.notes_text = FakeText("Con brocas")
-        app.notes_preview = FakeText("Con brocas")
-        app.tree = FakeTree({"one": {"values": [1, "Taladro", "Caja 4", 4, "2025-01-01"]}}, selection=["one"])
+        app.tree = FakeTree(
+            {"1": {"values": row_values("Taladro", "Caja 4", 4)}},
+            selection=["1"],
+        )
 
         app.clear_form()
 
         self.assertIsNone(app.current_item_id)
         self.assertEqual(app.quantity_var.get(), str(AppConfig.DEFAULT_QUANTITY))
         self.assertEqual(app.notes_text.get(), "")
-        self.assertEqual(app.notes_preview.get(), "Sin notas para este artículo.")
+        self.assertEqual(app.editor_title_var.get(), "Nuevo artículo")
         self.assertTrue(app.name_entry.focused)
 
     def test_export_visible_items_writes_current_rows(self):
@@ -684,51 +694,29 @@ class ReliabilityTests(unittest.TestCase):
         )
         showinfo.assert_called_once()
 
-    def test_view_selected_box_contents_requires_specific_box(self):
-        app = build_headless_app()
-        app.box_filter_var = FakeVar("Todas")
-
-        with mock.patch.object(ui_app.messagebox, "showwarning") as showwarning:
-            app.view_selected_box_contents()
-
-        showwarning.assert_called_once()
-
-    def test_view_selected_box_contents_refreshes_and_focuses_tree(self):
-        app = build_headless_app()
-        app.box_filter_var = FakeVar("Caja 4")
-        app.refresh_display = mock.Mock()
-
-        app.view_selected_box_contents()
-
-        app.refresh_display.assert_called_once()
-        self.assertTrue(app.tree.focused)
-        self.assertEqual(app.status_var.get(), "Viendo el contenido de Caja 4.")
-
     def test_delete_item_supports_multi_selection(self):
         app = build_headless_app()
         app.current_item_id = None
         app.inventory = FakeInventoryDelete({1: "deleted", 2: "deleted"})
         app.tree = FakeTree(
             {
-                "one": {"values": [1, "Uno", "Caja 1", 1, "2025-01-01 10:00"]},
-                "two": {"values": [2, "Dos", "Caja 2", 1, "2025-01-01 10:01"]},
+                "1": {"values": row_values("Uno", "Caja 1", 1)},
+                "2": {"values": row_values("Dos", "Caja 2", 1, "2025-01-01 10:01")},
             },
-            selection=["one", "two"],
+            selection=["1", "2"],
         )
         app.clear_form = mock.Mock()
         app.refresh_box_list = mock.Mock()
         app.refresh_display = mock.Mock()
 
-        with mock.patch.object(ui_app.messagebox, "askyesno", return_value=True), mock.patch.object(
-            ui_app.messagebox, "showinfo"
-        ) as showinfo:
+        with mock.patch.object(ui_app.messagebox, "askyesno", return_value=True):
             app.delete_item()
 
         self.assertEqual(app.inventory.deleted_ids, [1, 2])
         app.clear_form.assert_called_once()
         app.refresh_box_list.assert_called_once()
         app.refresh_display.assert_called_once()
-        showinfo.assert_called_once_with("Éxito", "Se eliminaron correctamente 2 artículos.")
+        self.assertEqual(app.status_var.get(), "Se eliminaron 2 artículos.")
 
     def test_delete_item_reports_partial_multi_delete(self):
         app = build_headless_app()
@@ -736,29 +724,46 @@ class ReliabilityTests(unittest.TestCase):
         app.inventory = FakeInventoryDelete({1: "deleted", 2: "not_found", 3: "error"})
         app.tree = FakeTree(
             {
-                "one": {"values": [1, "Uno", "Caja 1", 1, "2025-01-01 10:00"]},
-                "two": {"values": [2, "Dos", "Caja 2", 1, "2025-01-01 10:01"]},
-                "three": {"values": [3, "Tres", "Caja 3", 1, "2025-01-01 10:02"]},
+                "1": {"values": row_values("Uno", "Caja 1", 1)},
+                "2": {"values": row_values("Dos", "Caja 2", 1, "2025-01-01 10:01")},
+                "3": {"values": row_values("Tres", "Caja 3", 1, "2025-01-01 10:02")},
             },
-            selection=["one", "two", "three"],
+            selection=["1", "2", "3"],
         )
         app.clear_form = mock.Mock()
         app.refresh_box_list = mock.Mock()
         app.refresh_display = mock.Mock()
 
-        with mock.patch.object(ui_app.messagebox, "askyesno", return_value=True), mock.patch.object(
-            ui_app.messagebox, "showwarning"
-        ) as showwarning:
+        with mock.patch.object(ui_app.messagebox, "askyesno", return_value=True):
             app.delete_item()
 
         self.assertEqual(app.inventory.deleted_ids, [1, 2, 3])
         app.clear_form.assert_called_once()
         app.refresh_box_list.assert_called_once()
         app.refresh_display.assert_called_once()
-        showwarning.assert_called_once_with(
-            "Advertencia",
-            "Se eliminaron 1 artículo(s), 1 ya no existían y 1 no pudieron eliminarse.",
+        self.assertEqual(
+            app.status_var.get(),
+            "Se eliminaron 1; 1 ya no existían y 1 no se pudieron eliminar.",
         )
+
+    def test_delete_item_without_selection_updates_status(self):
+        app = build_headless_app()
+        app.tree = FakeTree({}, selection=[])
+
+        app.delete_item()
+
+        self.assertEqual(
+            app.status_var.get(), "Selecciona al menos un artículo para eliminar."
+        )
+
+    def test_format_date_renders_spanish_dates(self):
+        from inventory_app.ui.formatting import format_date
+
+        self.assertEqual(format_date("2025-01-05 10:30"), "05 ene 2025")
+        self.assertEqual(format_date("2024-12-05"), "05 dic 2024")
+        self.assertEqual(format_date(""), "—")
+        self.assertEqual(format_date(None), "—")
+        self.assertEqual(format_date("texto raro"), "texto raro")
 
     def test_startup_error_falls_back_to_stderr_without_display(self):
         import main
