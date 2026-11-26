@@ -11,13 +11,16 @@ def iter_csv_items(filename: str):
     """Yield normalized (name, box) pairs from a column-based inventory CSV."""
     with open(filename, "r", encoding="utf-8", newline="") as file:
         csv_reader = csv.reader(file)
-        headers = next(csv_reader)
+        headers = next(csv_reader, None)
+        if not headers:
+            return
 
+        headers = [header.strip().lstrip("\ufeff") for header in headers]
         for row in csv_reader:
             for i, box in enumerate(headers):
                 cell = row[i].strip() if i < len(row) else ""
                 if cell:
-                    yield cell, box.strip()
+                    yield cell, box
 
 
 def update_inventory_from_csv(
@@ -26,28 +29,31 @@ def update_inventory_from_csv(
     *,
     replace: bool = False,
 ) -> dict[str, int | bool]:
-    """Import CSV items into the canonical runtime schema."""
+    """Import CSV items into the canonical runtime schema.
+
+    The CSV is fully read and validated before the database is touched, so a
+    failed ``--replace`` can never leave the inventory empty.
+    """
+    rows = list(iter_csv_items(filename))
+    if replace and not rows:
+        raise ValueError(
+            "El CSV no contiene artículos; no se reemplazó el inventario."
+        )
+
     db = Database(db_path)
     inventory = InventoryManager(db, Cache())
-    inserted = 0
-    skipped = 0
 
     try:
-        if replace:
-            db.execute_update("DELETE FROM items")
-
-        for name, box in iter_csv_items(filename):
-            if inventory.add_item(name, box):
-                inserted += 1
-            else:
-                skipped += 1
+        inserted, skipped, invalid = inventory.import_items(rows, replace=replace)
         return {
             "inserted": inserted,
             "skipped": skipped,
+            "invalid": invalid,
             "replaced": replace,
         }
     finally:
         db.close_all()
+
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -75,21 +81,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    report = update_inventory_from_csv(
-        args.csv_filename,
-        db_path=args.db_path,
-        replace=args.replace,
-    )
+    try:
+        report = update_inventory_from_csv(
+            args.csv_filename,
+            db_path=args.db_path,
+            replace=args.replace,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"Error: {exc}")
+        return 1
+
     mode = (
         "reemplazando todos los artículos existentes"
         if args.replace
         else "sin borrar artículos existentes"
     )
-    print(
+    summary = (
         f"Importacion completada desde {Path(args.csv_filename)} hacia {args.db_path}: "
         f"{report['inserted']} agregados, {report['skipped']} omitidos por duplicado "
         f"({mode})."
     )
+    if report.get("invalid"):
+        summary += f" {report['invalid']} filas invalidas omitidas."
+    print(summary)
     return 0
 
 

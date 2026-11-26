@@ -222,6 +222,40 @@ class Database:
                     )
                 raise
 
+    def bulk_insert_items(
+        self,
+        rows: List[tuple[str, str, int, str]],
+        *,
+        replace: bool = False,
+    ) -> tuple[int, int]:
+        """Insert validated rows in one transaction.
+
+        Returns ``(inserted, skipped)`` where skipped counts duplicates. With
+        ``replace`` the existing inventory is deleted inside the same
+        transaction, so a failure rolls everything back.
+        """
+        if self._closed:
+            raise RuntimeError("Database connections have been closed")
+        if replace and not rows:
+            raise ValueError("No rows to import; refusing to clear the inventory")
+
+        with self.get_connection() as conn:
+            try:
+                if replace:
+                    conn.execute("DELETE FROM items")
+                cursor = conn.executemany(
+                    "INSERT OR IGNORE INTO items (name, box, quantity, notes) "
+                    "VALUES (?, ?, ?, ?)",
+                    rows,
+                )
+                inserted = max(cursor.rowcount, 0)
+                skipped = len(rows) - inserted
+                conn.commit()
+                return inserted, skipped
+            except sqlite3.Error:
+                conn.rollback()
+                raise
+
     def close_all(self) -> None:
         """Disable this database manager so future operations fail fast."""
         self._closed = True

@@ -1,7 +1,7 @@
 import logging
 import re
 import sqlite3
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, Iterable, List, Literal, Optional
 
 from .cache import Cache
 from .config import AppConfig
@@ -118,6 +118,41 @@ class InventoryManager:
         except sqlite3.Error as exc:
             logging.error("Error getting unique boxes: %s", exc)
             return ["Todas"]
+
+    def import_items(
+        self, items: Iterable[tuple[str, str]], *, replace: bool = False
+    ) -> tuple[int, int, int]:
+        """Validate and bulk-insert CSV rows in a single transaction.
+
+        Returns ``(inserted, skipped, invalid)``. Invalid rows are reported
+        instead of aborting the whole import.
+        """
+        prepared: List[tuple[str, str, int, str]] = []
+        invalid = 0
+
+        for name, box in items:
+            try:
+                clean_name = self._sanitize_input(
+                    name, AppConfig.MAX_NAME_LENGTH, "nombre del artículo"
+                )
+                clean_box = self._sanitize_input(
+                    box, AppConfig.MAX_BOX_LENGTH, "ubicación"
+                )
+            except ValueError:
+                invalid += 1
+                continue
+            prepared.append(
+                (clean_name, clean_box, AppConfig.DEFAULT_QUANTITY, "")
+            )
+
+        if replace and not prepared:
+            raise ValueError(
+                "No hay artículos válidos para importar; no se reemplazó el inventario."
+            )
+
+        inserted, skipped = self.db.bulk_insert_items(prepared, replace=replace)
+        self._invalidate_item_cache()
+        return inserted, skipped, invalid
 
     def get_all_items(
         self, sort_column: Optional[str] = None, descending: bool = False

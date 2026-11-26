@@ -455,6 +455,78 @@ class ReliabilityTests(unittest.TestCase):
             self.assertEqual(report["inserted"], 0)
             self.assertEqual(report["skipped"], 1)
 
+    def test_csv_replace_missing_file_preserves_inventory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "safe.db"
+            database = Database(str(db_path))
+            manager = InventoryManager(database, Cache())
+            manager.add_item("Existente", "Caja 0")
+            database.close_all()
+
+            with self.assertRaises(FileNotFoundError):
+                update_inventory_from_csv(
+                    str(Path(tmpdir) / "missing.csv"),
+                    db_path=str(db_path),
+                    replace=True,
+                )
+
+            conn = sqlite3.connect(db_path)
+            count = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+            conn.close()
+            self.assertEqual(count, 1)
+
+    def test_csv_replace_empty_file_preserves_inventory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "empty.db"
+            csv_path = Path(tmpdir) / "empty.csv"
+            csv_path.write_text("Caja 1\n", encoding="utf-8")
+
+            database = Database(str(db_path))
+            manager = InventoryManager(database, Cache())
+            manager.add_item("Existente", "Caja 0")
+            database.close_all()
+
+            with self.assertRaisesRegex(ValueError, "no contiene"):
+                update_inventory_from_csv(
+                    str(csv_path), db_path=str(db_path), replace=True
+                )
+
+            conn = sqlite3.connect(db_path)
+            count = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+            conn.close()
+            self.assertEqual(count, 1)
+
+    def test_csv_import_skips_invalid_rows_and_reports_them(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "invalid.db"
+            csv_path = Path(tmpdir) / "invalid.csv"
+
+            with csv_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["Caja 1", ""])
+                writer.writerow(["Valido", "Sin caja"])
+
+            report = update_inventory_from_csv(
+                str(csv_path), db_path=str(db_path), replace=False
+            )
+
+            self.assertEqual(report["inserted"], 1)
+            self.assertEqual(report["invalid"], 1)
+
+    def test_csv_import_cli_returns_error_on_missing_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with mock.patch("builtins.print") as mock_print:
+                exit_code = act_db.main(
+                    [
+                        str(Path(tmpdir) / "missing.csv"),
+                        "--db-path",
+                        str(Path(tmpdir) / "missing.db"),
+                    ]
+                )
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Error", mock_print.call_args.args[0])
+
     def test_cli_defaults_share_app_config_paths(self):
         act_args = act_db.parse_args([])
         migrate_args = migrate_db.parse_args([])
