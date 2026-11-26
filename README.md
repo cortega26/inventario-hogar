@@ -1,7 +1,5 @@
 # Inventario Hogar
 
-![tests](https://github.com/cortega26/inventario-hogar/actions/workflows/tests.yml/badge.svg)
-
 Aplicacion de escritorio en Python y Tkinter para registrar articulos del hogar, ubicarlos por caja y mantener una base SQLite sencilla.
 
 ## Requisitos
@@ -86,7 +84,8 @@ inyeccion de formulas al abrir el archivo en una hoja de calculo.
 Ejecutar pruebas:
 
 ```bash
-python -m unittest discover -s tests -v
+make test
+# o: python -m unittest discover -s tests -v
 ```
 
 ## Archivos generados en runtime
