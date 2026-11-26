@@ -162,8 +162,9 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_search_text ON items(search_text);
             CREATE INDEX IF NOT EXISTS idx_updated_at ON items(updated_at);
 
-            CREATE TRIGGER IF NOT EXISTS update_timestamp
-            AFTER UPDATE ON items
+            DROP TRIGGER IF EXISTS update_timestamp;
+            CREATE TRIGGER update_timestamp
+            AFTER UPDATE OF name, box, quantity, notes ON items
             BEGIN
                 UPDATE items
                 SET updated_at = CURRENT_TIMESTAMP
