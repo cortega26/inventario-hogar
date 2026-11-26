@@ -86,13 +86,12 @@ inyeccion de formulas al abrir el archivo en una hoja de calculo.
 Ejecutar pruebas:
 
 ```bash
-python -m unittest -q
+python -m unittest discover -s tests -v
 ```
 
 ## Archivos generados en runtime
 
 - `inventory.db`
-- `inventory.db-backup.db`
 - `inventory.log`
 - `backups/`
 - `__pycache__/`

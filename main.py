@@ -20,17 +20,22 @@ def _show_startup_error(message: str) -> None:
 
 
 def main() -> None:
-    handler = RotatingFileHandler(
-        AppConfig.LOG_PATH,
-        maxBytes=AppConfig.LOG_MAX_BYTES,
-        backupCount=AppConfig.LOG_BACKUP_COUNT,
-        encoding="utf-8",
-    )
-    logging.basicConfig(
-        handlers=[handler],
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
+    log_format = "%(asctime)s - %(levelname)s - %(message)s"
+    try:
+        handler = RotatingFileHandler(
+            AppConfig.LOG_PATH,
+            maxBytes=AppConfig.LOG_MAX_BYTES,
+            backupCount=AppConfig.LOG_BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        logging.basicConfig(
+            handlers=[handler],
+            level=logging.INFO,
+            format=log_format,
+        )
+    except OSError as exc:
+        logging.basicConfig(level=logging.INFO, format=log_format)
+        logging.warning("No se pudo abrir %s: %s", AppConfig.LOG_PATH, exc)
 
     try:
         app = InventoryApp()
