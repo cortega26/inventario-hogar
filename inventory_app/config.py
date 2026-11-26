@@ -1,0 +1,43 @@
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    """Application configuration with enhanced settings."""
+
+    # Database settings
+    DB_PATH: str = "inventory.db"
+    DB_TIMEOUT: float = 5.0
+    LOG_PATH: str = "inventory.log"
+    DEFAULT_CSV_IMPORT_PATH: str = "Inventario Cajas - Cajas 1-4.csv"
+
+    # Cache settings
+    CACHE_TTL: int = 300  # 5 minutes
+    CACHE_TTL_SEARCH: int = 60  # 1 minute for search results
+    MAX_CACHE_SIZE: int = 1000
+
+    # UI settings
+    WINDOW_SIZE: str = "1024x768"
+    THEME: str = "arc"
+    FONT_FAMILY: str = "Segoe UI"
+    FONT_SMALL: int = 9
+    FONT_NORMAL: int = 10
+    FONT_LARGE: int = 12
+    FONT_TITLE: int = 14
+
+    # Search settings
+    SEARCH_DEBOUNCE_MS: int = 300
+    DEFAULT_QUANTITY: int = 1
+
+    # Treeview settings
+    ROWS_PER_PAGE: int = 20
+    COLUMN_WIDTH_ID: int = 60
+    COLUMN_WIDTH_NAME: int = 320
+    COLUMN_WIDTH_BOX: int = 200
+    COLUMN_WIDTH_QUANTITY: int = 100
+    COLUMN_WIDTH_UPDATED: int = 150
+
+    # Data validation settings
+    MAX_NAME_LENGTH: int = 255
+    MAX_BOX_LENGTH: int = 100
+    MAX_NOTES_LENGTH: int = 1000

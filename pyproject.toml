@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inventario-hogar"
+version = "0.1.0"
+description = "Aplicacion de escritorio para gestionar inventario domestico con Tkinter y SQLite."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  { name = "Carlos" }
+]
+dependencies = []
+
+[project.optional-dependencies]
+theme = ["ttkthemes>=3.2.2"]
+
+[project.scripts]
+inventario-hogar = "main:main"
+
+[tool.setuptools]
+py-modules = ["main", "act_db", "migrate_db", "validation_script"]
+
+[tool.setuptools.packages.find]
+include = ["inventory_app*"]

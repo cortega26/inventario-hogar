@@ -1,0 +1,24 @@
+.venv/
+.qodo/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Datos personales del inventario (no versionar)
+inventory.db
+inventory.db-backup.db
+*.db-shm
+*.db-wal
+inventory.log
+Inventario Cajas - Cajas 1-4.csv
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
