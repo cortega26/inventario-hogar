@@ -699,6 +699,7 @@ class ReliabilityTests(unittest.TestCase):
             db_path = Path(tmpdir) / "missing.db"
 
             self.assertEqual(validation_script.main(["--db-path", str(db_path)]), 1)
+            self.assertFalse(db_path.exists())
 
     def test_migrate_main_accepts_db_path_argument(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1128,6 +1129,60 @@ class ReliabilityTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.assertEqual(basic_config.call_args.kwargs["handlers"], [mock.sentinel.handler])
+
+    def test_migration_reports_skipped_duplicate_rows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "duplicates.db"
+            conn = sqlite3.connect(db_path)
+            conn.executescript(
+                """
+                CREATE TABLE items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    box TEXT NOT NULL,
+                    updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO items (name, box) VALUES ('Libro', 'Caja 1');
+                INSERT INTO items (name, box) VALUES ('Libro', 'Caja 1');
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            with self.assertLogs(level="WARNING") as captured:
+                database = Database(str(db_path))
+                database.close_all()
+
+            self.assertTrue(
+                any("skipped" in message for message in captured.output)
+            )
+            conn = sqlite3.connect(db_path)
+            count = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+            conn.close()
+            self.assertEqual(count, 1)
+
+    def test_cleanup_legacy_fts_escapes_quotes_in_table_names(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "fts-quote.db"
+            database = Database(str(db_path))
+            database.close_all()
+
+            conn = sqlite3.connect(db_path)
+            conn.execute('CREATE TABLE "items_fts""evil" (content TEXT)')
+            conn.commit()
+            conn.close()
+
+            database = Database(str(db_path))
+            removed = database.cleanup_legacy_fts()
+            database.close_all()
+
+            self.assertIn('items_fts"evil', removed)
+            conn = sqlite3.connect(db_path)
+            remaining = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'items_fts%'"
+            ).fetchall()
+            conn.close()
+            self.assertEqual(remaining, [])
 
     def test_validation_tolerates_legacy_fts_tables(self):
         from validation_script import validate_database_schema

@@ -2,12 +2,17 @@
 
 import argparse
 import sqlite3
+from pathlib import Path
 
 from inventory_app import AppConfig
 
 
 def validate_database_schema(db_path: str = AppConfig.DB_PATH) -> bool:
     """Validate that the runtime schema matches the canonical layout."""
+    if db_path != ":memory:" and not Path(db_path).exists():
+        print(f"Database file does not exist: {db_path}")
+        return False
+
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.cursor()

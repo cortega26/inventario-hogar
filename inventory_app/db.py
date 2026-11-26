@@ -128,6 +128,7 @@ class Database:
                 )
             ),
         ]
+        source_count = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
         conn.execute(
             f"""
             INSERT OR IGNORE INTO items_new (
@@ -137,6 +138,14 @@ class Database:
             FROM items
             """
         )
+        copied_count = conn.execute("SELECT COUNT(*) FROM items_new").fetchone()[0]
+        if copied_count < source_count:
+            logging.warning(
+                "Migration copied %d of %d rows; %d invalid or duplicate rows were skipped.",
+                copied_count,
+                source_count,
+                source_count - copied_count,
+            )
         conn.execute(
             """
             UPDATE items_new
@@ -351,6 +360,7 @@ class Database:
             ).fetchall()
             table_names = [row["name"] for row in rows]
             for table_name in table_names:
-                conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+                safe_name = table_name.replace('"', '""')
+                conn.execute(f'DROP TABLE IF EXISTS "{safe_name}"')
             conn.commit()
             return table_names
