@@ -12,6 +12,7 @@ inventory.db-backup.db
 *.db-shm
 *.db-wal
 inventory.log
+backups/
 Inventario Cajas - Cajas 1-4.csv
 
 .pytest_cache/

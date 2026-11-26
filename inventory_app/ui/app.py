@@ -1,3 +1,5 @@
+import logging
+import sqlite3
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -31,6 +33,10 @@ class InventoryApp(tk.Tk):
         super().__init__()
 
         self.db = Database()
+        try:
+            self.db.backup_if_due()
+        except (OSError, sqlite3.Error, RuntimeError) as exc:
+            logging.warning("No se pudo crear el respaldo automático: %s", exc)
         self.cache = Cache()
         self.inventory = InventoryManager(self.db, self.cache)
 

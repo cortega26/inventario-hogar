@@ -1,5 +1,6 @@
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 import tkinter as tk
 from tkinter import messagebox
 
@@ -19,8 +20,14 @@ def _show_startup_error(message: str) -> None:
 
 
 def main() -> None:
+    handler = RotatingFileHandler(
+        AppConfig.LOG_PATH,
+        maxBytes=AppConfig.LOG_MAX_BYTES,
+        backupCount=AppConfig.LOG_BACKUP_COUNT,
+        encoding="utf-8",
+    )
     logging.basicConfig(
-        filename=AppConfig.LOG_PATH,
+        handlers=[handler],
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )

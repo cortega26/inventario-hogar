@@ -72,6 +72,13 @@ busqueda y filtro):
 La exportacion escapa valores que empiezan con `=`, `+`, `-` o `@` para evitar
 inyeccion de formulas al abrir el archivo en una hoja de calculo.
 
+## Respaldos y logs
+
+- Al abrir la app se crea un respaldo automatico como maximo una vez cada 24 horas
+  en `backups/` (se conservan los 10 mas recientes).
+- `act_db.py --replace` y las migraciones de esquema crean un respaldo previo.
+- `inventory.log` rota al superar 1 MB y conserva 3 archivos historicos.
+
 ## Desarrollo
 
 Ejecutar pruebas:
@@ -85,6 +92,7 @@ python -m unittest -q
 - `inventory.db`
 - `inventory.db-backup.db`
 - `inventory.log`
+- `backups/`
 - `__pycache__/`
 
 Estos archivos no deberian versionarse. El CSV de inventario real tambien queda fuera del repositorio para no exponer datos personales.

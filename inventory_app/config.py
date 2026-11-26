@@ -9,6 +9,11 @@ class AppConfig:
     DB_PATH: str = "inventory.db"
     DB_TIMEOUT: float = 5.0
     LOG_PATH: str = "inventory.log"
+    LOG_MAX_BYTES: int = 1_000_000
+    LOG_BACKUP_COUNT: int = 3
+    BACKUP_DIR: str = "backups"
+    BACKUP_RETENTION: int = 10
+    BACKUP_INTERVAL_HOURS: int = 24
     DEFAULT_CSV_IMPORT_PATH: str = "Inventario Cajas - Cajas 1-4.csv"
 
     # Cache settings

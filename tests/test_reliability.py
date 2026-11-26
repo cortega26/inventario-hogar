@@ -595,6 +595,73 @@ class ReliabilityTests(unittest.TestCase):
             self.assertEqual(report["inserted"], 1)
             self.assertEqual(report["invalid"], 1)
 
+    def test_replace_creates_pre_replace_backup(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "backup.db"
+            csv_path = Path(tmpdir) / "items.csv"
+
+            database = Database(str(db_path))
+            manager = InventoryManager(database, Cache())
+            manager.add_item("Anterior", "Caja 0")
+            database.close_all()
+
+            with csv_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["Caja 1"])
+                writer.writerow(["Nuevo"])
+
+            update_inventory_from_csv(
+                str(csv_path), db_path=str(db_path), replace=True
+            )
+
+            backups = list((Path(tmpdir) / AppConfig.BACKUP_DIR).glob("backup-pre-replace-*.db"))
+            self.assertEqual(len(backups), 1)
+
+            conn = sqlite3.connect(backups[0])
+            names = conn.execute("SELECT name FROM items").fetchall()
+            conn.close()
+            self.assertEqual(names, [("Anterior",)])
+
+    def test_schema_migration_creates_backup(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "legacy.db"
+            conn = sqlite3.connect(db_path)
+            conn.executescript(
+                """
+                CREATE TABLE items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    box TEXT NOT NULL,
+                    updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO items (name, box) VALUES ('Viejo', 'Caja 1');
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            database = Database(str(db_path))
+            database.close_all()
+
+            backups = list((Path(tmpdir) / AppConfig.BACKUP_DIR).glob("legacy-pre-migration-*.db"))
+            self.assertEqual(len(backups), 1)
+            conn = sqlite3.connect(backups[0])
+            columns = [row[1] for row in conn.execute("PRAGMA table_info(items)")]
+            conn.close()
+            self.assertIn("updated", columns)
+
+    def test_backup_if_due_creates_only_one_backup_per_interval(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "auto.db"
+            database = Database(str(db_path))
+            first = database.backup_if_due()
+            second = database.backup_if_due()
+            database.close_all()
+
+            self.assertIsNotNone(first)
+            self.assertIsNone(second)
+            self.assertTrue(Path(first).exists())
+
     def test_csv_import_cli_returns_error_on_missing_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             with mock.patch("builtins.print") as mock_print:
@@ -1043,17 +1110,24 @@ class ReliabilityTests(unittest.TestCase):
                 main._show_startup_error("fatal")
                 fake_stderr.write.assert_called()
 
-    def test_main_uses_shared_log_path(self):
+    def test_main_uses_rotating_log_handler(self):
         import main
 
         with mock.patch.object(main.logging, "basicConfig") as basic_config, mock.patch.object(
             main, "InventoryApp"
-        ) as inventory_app:
+        ) as inventory_app, mock.patch.object(main, "RotatingFileHandler") as handler_cls:
+            handler_cls.return_value = mock.sentinel.handler
             inventory_app.return_value.mainloop.return_value = None
 
             main.main()
 
-        self.assertEqual(basic_config.call_args.kwargs["filename"], AppConfig.LOG_PATH)
+        handler_cls.assert_called_once_with(
+            AppConfig.LOG_PATH,
+            maxBytes=AppConfig.LOG_MAX_BYTES,
+            backupCount=AppConfig.LOG_BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        self.assertEqual(basic_config.call_args.kwargs["handlers"], [mock.sentinel.handler])
 
     def test_validation_tolerates_legacy_fts_tables(self):
         from validation_script import validate_database_schema

@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import sqlite3
 from pathlib import Path
 
 from inventory_app import AppConfig, Cache, Database, InventoryManager
@@ -44,6 +45,8 @@ def update_inventory_from_csv(
     inventory = InventoryManager(db, Cache())
 
     try:
+        if replace:
+            db.create_backup(tag="pre-replace")
         inserted, skipped, invalid = inventory.import_items(rows, replace=replace)
         return {
             "inserted": inserted,
@@ -87,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
             db_path=args.db_path,
             replace=args.replace,
         )
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, sqlite3.Error) as exc:
         print(f"Error: {exc}")
         return 1
 

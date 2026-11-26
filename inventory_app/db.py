@@ -1,7 +1,10 @@
 import logging
 import sqlite3
+import time
 from contextlib import contextmanager
-from typing import List
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
 
 from .config import AppConfig
 
@@ -63,6 +66,10 @@ class Database:
             }
             if columns == canonical_columns:
                 return
+            try:
+                self._backup_connection(conn, "pre-migration")
+            except (OSError, sqlite3.Error) as exc:
+                logging.warning("Could not create pre-migration backup: %s", exc)
 
         conn.executescript(
             """
@@ -259,6 +266,75 @@ class Database:
     def close_all(self) -> None:
         """Disable this database manager so future operations fail fast."""
         self._closed = True
+
+    def create_backup(self, tag: str = "manual") -> Optional[str]:
+        """Create a consistent SQLite backup and prune old copies."""
+        if self._closed:
+            raise RuntimeError("Database connections have been closed")
+        if not Path(self.db_path).exists():
+            return None
+
+        source = sqlite3.connect(self.db_path)
+        try:
+            return self._backup_connection(source, tag)
+        finally:
+            source.close()
+
+    def backup_if_due(self, interval_hours: Optional[int] = None) -> Optional[str]:
+        """Create at most one automatic backup per configured interval."""
+        if not Path(self.db_path).exists():
+            return None
+
+        interval = (
+            AppConfig.BACKUP_INTERVAL_HOURS
+            if interval_hours is None
+            else interval_hours
+        )
+        directory = Path(self.db_path).parent / AppConfig.BACKUP_DIR
+        stem = Path(self.db_path).stem or "inventory"
+        backups = list(directory.glob(f"{stem}-*.db"))
+        if backups:
+            newest = max(backup.stat().st_mtime for backup in backups)
+            if time.time() - newest < interval * 3600:
+                return None
+
+        return self.create_backup(tag="auto")
+
+    def _backup_connection(
+        self, conn: sqlite3.Connection, tag: str
+    ) -> Optional[str]:
+        destination = self._backup_path(tag)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        target = sqlite3.connect(destination)
+        try:
+            conn.backup(target)
+        finally:
+            target.close()
+        self._prune_backups()
+        return str(destination)
+
+    def _backup_path(self, tag: str) -> Path:
+        stem = Path(self.db_path).stem or "inventory"
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return (
+            Path(self.db_path).parent
+            / AppConfig.BACKUP_DIR
+            / f"{stem}-{tag}-{timestamp}.db"
+        )
+
+    def _prune_backups(self) -> None:
+        directory = Path(self.db_path).parent / AppConfig.BACKUP_DIR
+        stem = Path(self.db_path).stem or "inventory"
+        backups = sorted(
+            directory.glob(f"{stem}-*.db"),
+            key=lambda backup: backup.stat().st_mtime,
+            reverse=True,
+        )
+        for old_backup in backups[AppConfig.BACKUP_RETENTION :]:
+            try:
+                old_backup.unlink()
+            except OSError as exc:
+                logging.warning("Could not remove old backup %s: %s", old_backup, exc)
 
     def cleanup_legacy_fts(self) -> List[str]:
         """Remove unmanaged legacy FTS tables left by older app versions."""
