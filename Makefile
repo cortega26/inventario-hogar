@@ -1,7 +1,9 @@
+PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,python)
+
 .PHONY: test run
 
 test:
-	python -m unittest discover -s tests -v
+	$(PYTHON) -m unittest discover -s tests -v
 
 run:
-	python main.py
+	$(PYTHON) main.py
