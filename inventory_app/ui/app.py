@@ -1,4 +1,3 @@
-import csv
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -7,6 +6,7 @@ from typing import Optional
 from ..cache import Cache
 from ..config import AppConfig
 from ..db import Database
+from ..export import write_csv, write_xlsx
 from ..manager import InventoryManager
 from .formatting import format_date
 from .theme import (
@@ -125,12 +125,13 @@ class InventoryApp(tk.Tk):
         actions = ttk.Frame(header, style="Header.TFrame")
         actions.grid(row=0, column=2, rowspan=2, sticky="e")
 
-        ttk.Button(
+        self.export_button = ttk.Button(
             actions,
-            text="Exportar",
+            text="Exportar  ▾",
             style="HeaderGhost.TButton",
-            command=self.export_visible_items,
-        ).pack(side=tk.LEFT, padx=(0, 8))
+            command=self._open_export_menu,
+        )
+        self.export_button.pack(side=tk.LEFT, padx=(0, 8))
         ttk.Button(
             actions,
             text="+  Nuevo artículo",
@@ -900,8 +901,37 @@ class InventoryApp(tk.Tk):
                 f"Mostrando {self._plural(item_count, 'artículo', 'artículos')}."
             )
 
-    def export_visible_items(self) -> None:
-        """Export the currently visible items to a CSV file."""
+    def _open_export_menu(self) -> None:
+        """Offer the available export formats below the header button."""
+        menu = tk.Menu(
+            self,
+            tearoff=False,
+            bg=SURFACE,
+            fg=INK,
+            activebackground=ACCENT,
+            activeforeground="#FFFFFF",
+            bd=0,
+            relief="flat",
+            font=(self.font_family, AppConfig.FONT_NORMAL),
+        )
+        menu.add_command(
+            label="Excel (.xlsx)",
+            command=lambda: self.export_visible_items("xlsx"),
+        )
+        menu.add_command(
+            label="CSV (.csv)",
+            command=lambda: self.export_visible_items("csv"),
+        )
+        self._export_menu = menu
+        x = self.export_button.winfo_rootx()
+        y = self.export_button.winfo_rooty() + self.export_button.winfo_height()
+        try:
+            menu.tk_popup(x, y)
+        finally:
+            menu.grab_release()
+
+    def export_visible_items(self, file_format: str = "xlsx") -> None:
+        """Export the currently visible items to Excel or CSV."""
         if not self.visible_items:
             messagebox.showwarning(
                 "Advertencia",
@@ -909,33 +939,38 @@ class InventoryApp(tk.Tk):
             )
             return
 
+        if file_format == "csv":
+            title = "Exportar a CSV"
+            extension = ".csv"
+            filetypes = [("CSV", "*.csv")]
+            initialfile = "inventario_exportado.csv"
+        else:
+            title = "Exportar a Excel"
+            extension = ".xlsx"
+            filetypes = [("Excel", "*.xlsx")]
+            initialfile = "inventario_exportado.xlsx"
+
         filename = filedialog.asksaveasfilename(
-            title="Exportar resultados",
-            defaultextension=".csv",
-            filetypes=[("CSV", "*.csv")],
-            initialfile="inventario_exportado.csv",
+            title=title,
+            defaultextension=extension,
+            filetypes=filetypes,
+            initialfile=initialfile,
         )
         if not filename:
             return
 
-        with open(filename, "w", encoding="utf-8", newline="") as handle:
-            writer = csv.writer(handle)
-            writer.writerow(["id", "name", "box", "quantity", "notes", "updated_at"])
-            for item in self.visible_items:
-                writer.writerow(
-                    [
-                        item["id"],
-                        item["name"],
-                        item["box"],
-                        item["quantity"],
-                        item["notes"],
-                        item["updated_at"],
-                    ]
-                )
+        try:
+            if file_format == "csv":
+                exported = write_csv(filename, self.visible_items)
+            else:
+                exported = write_xlsx(filename, self.visible_items)
+        except Exception as exc:  # pragma: no cover - dialog path
+            messagebox.showerror("Error", f"No se pudo exportar: {exc}")
+            return
 
         messagebox.showinfo(
             "Éxito",
-            f"Se exportaron {len(self.visible_items)} artículo(s) a {filename}.",
+            f"Se exportaron {exported} artículo(s) a {Path(filename).name}.",
         )
 
     def on_closing(self) -> None:

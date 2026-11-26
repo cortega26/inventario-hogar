@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 authors = [
   { name = "Carlos" }
 ]
-dependencies = []
+dependencies = ["openpyxl>=3.1,<4"]
 
 [project.scripts]
 inventario-hogar = "main:main"

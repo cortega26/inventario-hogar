@@ -680,7 +680,7 @@ class ReliabilityTests(unittest.TestCase):
                 "asksaveasfilename",
                 return_value=str(export_path),
             ), mock.patch.object(ui_app.messagebox, "showinfo") as showinfo:
-                app.export_visible_items()
+                app.export_visible_items("csv")
 
             with export_path.open("r", encoding="utf-8", newline="") as handle:
                 rows = list(csv.reader(handle))
@@ -693,6 +693,100 @@ class ReliabilityTests(unittest.TestCase):
             ],
         )
         showinfo.assert_called_once()
+
+    def test_export_visible_items_writes_excel_workbook(self):
+        from openpyxl import load_workbook
+
+        app = build_headless_app()
+        app.visible_items = [
+            {
+                "id": 1,
+                "name": "Taladro",
+                "box": "Caja 4",
+                "quantity": 2,
+                "notes": "Con brocas",
+                "updated_at": "2025-01-01 10:00",
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            export_path = Path(tmpdir) / "export.xlsx"
+            with mock.patch.object(
+                ui_app.filedialog,
+                "asksaveasfilename",
+                return_value=str(export_path),
+            ), mock.patch.object(ui_app.messagebox, "showinfo") as showinfo:
+                app.export_visible_items("xlsx")
+
+            workbook = load_workbook(export_path)
+            sheet = workbook.active
+
+        self.assertEqual(
+            [cell.value for cell in sheet[1]],
+            ["ID", "Artículo", "Ubicación", "Cantidad", "Notas", "Actualizado"],
+        )
+        self.assertEqual(sheet["A2"].value, 1)
+        self.assertEqual(sheet["B2"].value, "Taladro")
+        self.assertEqual(sheet["D2"].value, 2)
+        self.assertEqual(sheet["F2"].number_format, "dd mmm yyyy hh:mm")
+        self.assertEqual(sheet.freeze_panes, "A2")
+        self.assertEqual(sheet.auto_filter.ref, "A1:F2")
+        showinfo.assert_called_once()
+
+    def test_xlsx_export_keeps_formula_like_values_as_text(self):
+        from openpyxl import load_workbook
+
+        app = build_headless_app()
+        app.visible_items = [
+            {
+                "id": 1,
+                "name": '=HYPERLINK("http://example.com")',
+                "box": "Caja 1",
+                "quantity": 1,
+                "notes": "+SUM(A1:A2)",
+                "updated_at": "2025-01-01 10:00",
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            export_path = Path(tmpdir) / "formulas.xlsx"
+            with mock.patch.object(
+                ui_app.filedialog, "asksaveasfilename", return_value=str(export_path)
+            ), mock.patch.object(ui_app.messagebox, "showinfo"):
+                app.export_visible_items("xlsx")
+
+            sheet = load_workbook(export_path).active
+
+        self.assertEqual(sheet["B2"].value, '=HYPERLINK("http://example.com")')
+        self.assertEqual(sheet["B2"].data_type, "s")
+        self.assertEqual(sheet["E2"].value, "+SUM(A1:A2)")
+        self.assertEqual(sheet["E2"].data_type, "s")
+
+    def test_csv_export_escapes_formula_like_values(self):
+        app = build_headless_app()
+        app.visible_items = [
+            {
+                "id": 1,
+                "name": "=cmd|' /C calc'!A0",
+                "box": "Caja 1",
+                "quantity": 1,
+                "notes": "@SUM(1)",
+                "updated_at": "2025-01-01 10:00",
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            export_path = Path(tmpdir) / "formulas.csv"
+            with mock.patch.object(
+                ui_app.filedialog, "asksaveasfilename", return_value=str(export_path)
+            ), mock.patch.object(ui_app.messagebox, "showinfo"):
+                app.export_visible_items("csv")
+
+            with export_path.open("r", encoding="utf-8", newline="") as handle:
+                rows = list(csv.reader(handle))
+
+        self.assertEqual(rows[1][1], "'=cmd|' /C calc'!A0")
+        self.assertEqual(rows[1][4], "'@SUM(1)")
 
     def test_delete_item_supports_multi_selection(self):
         app = build_headless_app()

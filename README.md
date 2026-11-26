@@ -60,6 +60,18 @@ python migrate_db.py --db-path inventory.db
 - Panel de detalle para crear o editar sin salir de la lista.
 - Atajos: `Ctrl+N` nuevo, `Ctrl+S` guardar, `Ctrl+F` buscar, `Supr` eliminar.
 
+## Exportar
+
+El boton `Exportar` ofrece dos formatos con los articulos visibles (respetando
+busqueda y filtro):
+
+- **Excel (.xlsx)**: encabezados con estilo, filtros, panel congelado, anchos de
+  columna y fechas con formato. Tambien accesible con `Ctrl+E`.
+- **CSV (.csv)**: reporte plano en UTF-8.
+
+La exportacion escapa valores que empiezan con `=`, `+`, `-` o `@` para evitar
+inyeccion de formulas al abrir el archivo en una hoja de calculo.
+
 ## Desarrollo
 
 Ejecutar pruebas:
