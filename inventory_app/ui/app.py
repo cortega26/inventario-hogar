@@ -522,6 +522,7 @@ class InventoryApp(tk.Tk):
             )
 
         self._sync_selection_with_visible_items()
+        self._restore_visible_selection()
         self._update_result_status(
             len(items),
             sum(item["quantity"] for item in items),
@@ -845,6 +846,16 @@ class InventoryApp(tk.Tk):
             self._clear_error()
             self._set_editor_mode(None)
             self.tree.selection_remove(*self.tree.selection())
+
+    def _restore_visible_selection(self) -> None:
+        """Keep the edited row highlighted after a refresh."""
+        if self.current_item_id is None:
+            return
+        item_id = str(self.current_item_id)
+        if self.current_item_id not in self.visible_item_map:
+            return
+        self.tree.selection_set(item_id)
+        self.tree.focus(item_id)
 
     def _get_selected_item_ids(self) -> list[int]:
         item_ids = []

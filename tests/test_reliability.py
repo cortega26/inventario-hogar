@@ -82,6 +82,7 @@ class FakeTree:
         self._selection = selection or []
         self.selection_removed = False
         self.focused = False
+        self.focused_item = None
 
     def get_children(self):
         return list(self._items.keys())
@@ -95,6 +96,12 @@ class FakeTree:
     def selection_remove(self, *_args):
         self.selection_removed = True
         self._selection = []
+
+    def selection_set(self, item_id):
+        self._selection = [item_id]
+
+    def focus(self, item_id):
+        self.focused_item = item_id
 
     def focus_set(self):
         self.focused = True
@@ -754,6 +761,28 @@ class ReliabilityTests(unittest.TestCase):
         self.assertEqual(app.quantity_var.get(), "2")
         self.assertEqual(app.notes_text.get(), "Con brocas")
         self.assertEqual(app.editor_title_var.get(), "Editar artículo")
+
+    def test_restore_visible_selection_keeps_edited_row_highlighted(self):
+        app = build_headless_app()
+        app.current_item_id = 1
+        app.visible_item_map = {1: {"id": 1}}
+        app.tree = FakeTree({"1": {"values": row_values("Actual", "Caja 1", 2)}})
+
+        app._restore_visible_selection()
+
+        self.assertEqual(app.tree.selection(), ("1",))
+        self.assertEqual(app.tree.focused_item, "1")
+
+    def test_restore_visible_selection_ignores_hidden_items(self):
+        app = build_headless_app()
+        app.current_item_id = 99
+        app.visible_item_map = {1: {"id": 1}}
+        app.tree = FakeTree({"1": {"values": row_values("Actual", "Caja 1", 2)}})
+
+        app._restore_visible_selection()
+
+        self.assertEqual(app.tree.selection(), ())
+        self.assertIsNone(app.tree.focused_item)
 
     def test_get_selected_item_ids_returns_all_selected_tree_ids(self):
         app = build_headless_app()
