@@ -27,6 +27,7 @@ class AppConfig:
     # Search settings
     SEARCH_DEBOUNCE_MS: int = 300
     DEFAULT_QUANTITY: int = 1
+    MAX_QUANTITY: int = 1_000_000
 
     # Treeview settings
     ROWS_PER_PAGE: int = 20

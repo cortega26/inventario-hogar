@@ -362,7 +362,7 @@ class InventoryApp(tk.Tk):
         self.quantity_entry = ttk.Spinbox(
             quantity_row,
             from_=1,
-            to=9999,
+            to=AppConfig.MAX_QUANTITY,
             textvariable=self.quantity_var,
             width=8,
             style="TSpinbox",

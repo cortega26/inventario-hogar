@@ -344,6 +344,26 @@ class ReliabilityTests(unittest.TestCase):
                 manager.add_item_status("Taladro", "Caja 4", -1, "")
             with self.assertRaisesRegex(ValueError, "cantidad"):
                 manager.add_item_status("Taladro", "Caja 4", "abc", "")
+            with self.assertRaisesRegex(ValueError, "superar"):
+                manager.add_item_status(
+                    "Taladro", "Caja 4", AppConfig.MAX_QUANTITY + 1, ""
+                )
+            with self.assertRaisesRegex(ValueError, "superar"):
+                manager.add_item_status("Taladro", "Caja 4", 10**20, "")
+            database.close_all()
+
+    def test_maximum_quantity_is_accepted(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "max-quantity.db"
+            database = Database(str(db_path))
+            manager = InventoryManager(database, Cache())
+
+            self.assertEqual(
+                manager.add_item_status(
+                    "Tornillos", "Caja 1", AppConfig.MAX_QUANTITY, ""
+                ),
+                "created",
+            )
             database.close_all()
 
     def test_search_matches_notes(self):

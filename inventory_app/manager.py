@@ -51,7 +51,7 @@ class InventoryManager:
             return "created" if affected > 0 else "error"
         except sqlite3.IntegrityError:
             return "duplicate"
-        except sqlite3.Error:
+        except (sqlite3.Error, OverflowError):
             return "error"
 
     def update_item(
@@ -91,7 +91,7 @@ class InventoryManager:
             return "updated"
         except sqlite3.IntegrityError:
             return "duplicate"
-        except sqlite3.Error:
+        except (sqlite3.Error, OverflowError):
             return "error"
 
     def delete_item(self, item_id: int) -> bool:
@@ -308,6 +308,10 @@ class InventoryManager:
 
         if normalized < 1:
             raise ValueError("La cantidad debe ser un número entero positivo")
+        if normalized > AppConfig.MAX_QUANTITY:
+            raise ValueError(
+                f"La cantidad no puede superar {AppConfig.MAX_QUANTITY:,}".replace(",", ".")
+            )
 
         return normalized
 
