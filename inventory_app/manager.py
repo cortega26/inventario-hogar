@@ -1,6 +1,7 @@
 import logging
 import re
 import sqlite3
+import unicodedata
 from typing import Any, Dict, Iterable, List, Literal, Optional
 
 from .cache import Cache
@@ -281,15 +282,21 @@ class InventoryManager:
 
     @staticmethod
     def _sanitize_input(value: str, max_length: int, field_name: str) -> str:
-        """Sanitize input with meaningful validation feedback."""
+        """Normalize input without silently deleting valid characters."""
         label = field_name or "campo"
 
         if not value or not value.strip():
             raise ValueError(f"El campo '{label}' no puede estar vacío")
 
-        sanitized = re.sub(r"[^\w\s\-'(),\.°]", "", value.strip())
-        if not sanitized.strip():
-            raise ValueError(f"El campo '{label}' no contiene caracteres válidos")
+        for character in value:
+            if character in "\t\n\r":
+                continue
+            if unicodedata.category(character) in ("Cc", "Cf"):
+                raise ValueError(
+                    f"El campo '{label}' contiene caracteres no permitidos"
+                )
+
+        sanitized = re.sub(r"\s+", " ", value.strip())
         if len(sanitized) > max_length:
             raise ValueError(f"El campo '{label}' supera el máximo de {max_length} caracteres")
 

@@ -366,6 +366,33 @@ class ReliabilityTests(unittest.TestCase):
             )
             database.close_all()
 
+    def test_sanitizer_preserves_valid_symbols_and_normalizes_spaces(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "symbols.db"
+            database = Database(str(db_path))
+            manager = InventoryManager(database, Cache())
+
+            name = "  Cable 100% cobre & fibra / 3m #2  "
+            box = "Caja 1/2 (fondo)"
+            self.assertEqual(manager.add_item_status(name, box), "created")
+
+            item = manager.get_all_items()[0]
+            self.assertEqual(item["name"], "Cable 100% cobre & fibra / 3m #2")
+            self.assertEqual(item["box"], "Caja 1/2 (fondo)")
+            database.close_all()
+
+    def test_sanitizer_rejects_control_characters(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "control.db"
+            database = Database(str(db_path))
+            manager = InventoryManager(database, Cache())
+
+            with self.assertRaisesRegex(ValueError, "no permitidos"):
+                manager.add_item_status("Malo\x00", "Caja 1")
+            with self.assertRaisesRegex(ValueError, "no permitidos"):
+                manager.add_item_status("Malo\u202e", "Caja 1")
+            database.close_all()
+
     def test_search_matches_notes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "notes-search.db"
